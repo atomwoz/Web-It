@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
@@ -38,7 +39,6 @@ public class ConnectionHandler implements Runnable
 			{
 				try
 				{
-					ByteBuffer buffer = ByteBuffer.allocate(1024);
 					HttpRequestParser.HttpRequest req = HttpRequestParser.parseRequest(socketChannel);
 					con.println(socketChannel.getRemoteAddress().toString() + " is requesting " + req.getPath());
 					Path requestedPath = Paths.get(dir + File.separator + req.getPath()).normalize();
@@ -46,14 +46,25 @@ public class ConnectionHandler implements Runnable
 					if (!requestedPath.startsWith(expectedDirectory))
 					{
 						con.err("Invalid file path.");
+						Responser.writeHttpErr(socketChannel, 404);
+						return;
+					}
+					File requestedFile = requestedPath.toFile();
+
+					// Whenever it not exists or it isn't accessible return 404
+					if (!requestedFile.canRead())
+					{
+						con.err("Requested resource can't be reached, "
+								+ (requestedFile.exists() ? "access denied" : "file not exists"));
+						Responser.writeHttpErr(socketChannel, 404);
 						return;
 					}
 					FileChannel reqFile = FileChannel.open(requestedPath, StandardOpenOption.READ);
 					String[] extensions = requestedPath.toFile().getName().split("\\.");
 					if (extensions.length < 2)
 					{
-						Responser.writeHttpResponse(socketChannel, 400, "No file extension", "", 0);
 						con.err("No file extension");
+						Responser.writeHttpResponse(socketChannel, 400, "No file extension", "", 0);
 						return;
 					}
 					String mime = MimeAndDefaultsMapper.mimeMap.get(extensions[1]);
@@ -63,31 +74,27 @@ public class ConnectionHandler implements Runnable
 						ByteBuffer fileBuff = ByteBuffer.allocate(8192);
 						while (reqFile.read(fileBuff) > 0)
 						{
-							fileBuff.rewind();
+							fileBuff.flip();
 							socketChannel.write(fileBuff);
+							fileBuff.clear();
 						}
 						Responser.writeString(socketChannel, "\r\n\r\n");
 					}
 				}
+				catch (AccessDeniedException e)
+				{
+					con.err("Access denied to file: " + e.getMessage());
+					Responser.writeHttpErr(socketChannel, 404);
+				}
 				catch (IOException e)
 				{
-					try
-					{
-						Responser.writeHttpResponse(socketChannel, 500, "Internal server error", "", 0);
-					}
-					catch (IOException e1)
-					{
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					}
-					con.err("Error with serving content to client: " + e.getMessage());
-					e.printStackTrace();
+					con.err("Internal server error: " + e.getClass().getCanonicalName());
+					Responser.writeHttpErr(socketChannel, 500);
 				}
 			}
 		}
 		catch (Exception e)
 		{
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

@@ -5,9 +5,20 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Responser
 {
+	static Map<Integer, String> errorMap = new HashMap<>();
+
+	static
+	{
+		errorMap.put(404, "File not found");
+		errorMap.put(500, "Internal server error");
+		errorMap.put(403, "Access forbidden");
+	}
+
 	public static void writeHttpResponse(SocketChannel socketChannel, int statusCode, String statusMessage,
 			String contentType, long contentLength) throws IOException
 	{
@@ -30,6 +41,17 @@ public class Responser
 		while (buffer.hasRemaining())
 		{
 			socketChannel.write(buffer);
+		}
+	}
+
+	public static void writeHttpErr(SocketChannel sck, int code)
+	{
+		try
+		{
+			writeHttpResponse(sck, code, errorMap.get(code), "", 0);
+		}
+		catch (IOException e)
+		{
 		}
 	}
 }

@@ -20,8 +20,7 @@ public class HttpRequestParser
 		StringBuilder requestBuilder = new StringBuilder();
 
 		// Read data from the channel into the buffer
-		int bytesRead;
-		while ((bytesRead = socketChannel.read(buffer)) > 0)
+		while (socketChannel.read(buffer) > 0)
 		{
 			buffer.flip();
 			byte[] data = new byte[buffer.remaining()];

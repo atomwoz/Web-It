@@ -23,6 +23,7 @@ public class Main
 		try
 		{
 
+			@SuppressWarnings("resource")
 			ServerSocketChannel sck = ServerSocketChannel.open().bind(new InetSocketAddress(PORT));
 			try (sck)
 			{
